@@ -1,9 +1,7 @@
 /**
  * TODO
- * - preload following chapters 
  * - give the impression of a single audio file
- * - resume playing 
- * - show current chapter 
+ * - update current chapter when the chapter is in the same file
  * - show book description and subtitle 
  * - load cover
  * - avoid initial re-load of the file tree: we cannot serialize the files...
@@ -12,7 +10,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Storage } from 'megajs'
 import Dexie from 'dexie';
-import { LoadingSpinner } from './LoadingSpinner';
+import LoadingSpinner from './LoadingSpinner';
 
 // Define the MEGA storage
 const storage = new Storage({
@@ -28,8 +26,23 @@ db.version(1).stores({
   files: '++id, &name',
 });
 
+// Assert
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message || 'Assertion failed');
+  }
+}
+
 // Cache
+const downloadCache = {};
 const getCached = async (name, getData, options = {}) => {
+  if (!downloadCache[name]) {
+    downloadCache[name] = getCached2(name, getData, options);
+  }
+  return downloadCache[name];
+}
+
+const getCached2 = async (name, getData, options = {}) => {
   const { noCache, useLocalStorage } = options;
   // const { noCache, useLocalStorage } = { noCache: true };
   let data = null
@@ -49,7 +62,6 @@ const getCached = async (name, getData, options = {}) => {
   else {
     console.info(`File "${name}" not found locally`)
   }
-  // data = await file.downloadBuffer()
   data = await getData();
   console.info(`File "${name}" downloaded locally`)
   if (name.endsWith('.json')) {
@@ -70,7 +82,6 @@ const getFiles = async (options = {}) => {
   return getCached('__files__', async () => {
     await storage.ready;
     return db.files.where('name');
-
   }, options);
 };
 
@@ -108,8 +119,8 @@ let overrideCurrentTime = null;
 
 // App ////////////////////////////////////
 function App() {
-  const [ready, setReady] = useState(false);
-  const [books, setBooks] = useState([]);
+  // const [ready, setReady] = useState();
+  const [books, setBooks] = useState();
   const [selectedBook, setSelectedBook] = useState();
   const [selectedChapter, setSelectedChapter] = useState();
   // const [currentTime, setCurrentTime] = useState();
@@ -123,7 +134,7 @@ function App() {
       console.log({ files, File })
       let bookFiles = files.filter(file => file.name === 'openbook.json')
 
-      // TODO: Revert 
+      // TODO: Revert to show all books
       bookFiles = [bookFiles[0]]
       const books = (await Promise.all(bookFiles.map(async file => {
         const data = await getFile(file)
@@ -136,9 +147,9 @@ function App() {
     load();
   }, []);
 
-  // Resume book
+  // Resume or load first book
   useEffect(() => {
-    if (!ready) return;
+    if (!books) return;
     const { bookId, chapterId, currentTime } = getConfig();
     console.log('resume', { bookId, chapterId, currentTime });
     const book = books.filter(it => getBookId(it) === bookId)[0];
@@ -149,7 +160,7 @@ function App() {
     if (!chapter) return;
     overrideCurrentTime = currentTime;
     setSelectedChapter(chapter);
-  }, [books, ready]);
+  }, [books]);
 
   // Clear chapter if book was cleared
   useEffect(() => {
@@ -171,17 +182,17 @@ function App() {
         return chapters[i - 1];
       }
     }
-    throw new Error('The current chapter was not found');
+    assert(false, 'The current chapter was not found');
   }, [selectedBook, selectedChapter])
 
   const downloadChapter = useCallback(async (chapter) => {
     console.log('downloadChapter', { chapter, selectedBook });
+    assert(chapter, "chapter must be defined");
+
     const { name: fileName, path: filePath, startsAtSeconds } = getFileName(chapter.path);
     const files = selectedBook.file.parent.children;
     const mp3File = files.filter(file => file.name.endsWith(fileName))[0];
-    if (!mp3File) {
-      throw new Error(`mp3 part "${fileName}" in path "${filePath}" not found in [${files.map(it => it.name)}]`);
-    }
+    assert(mp3File, `mp3 part "${fileName}" in path "${filePath}" not found in [${files.map(it => it.name)}]`)
     const data = await getFile(mp3File);
     return { data, name: fileName, path: filePath, startsAtSeconds }
   }, [selectedBook]);
@@ -204,11 +215,9 @@ function App() {
     if (config.currentTime) audioRef.current.currentTime = config.currentTime;
     if (config.volume) audioRef.current.volume = config.volume;
 
-    // Start
-    audioRef.current.play();
-
     // Download next chapter 
-    downloadChapter(getNextChapter());
+    const nextChapter = getNextChapter();
+    if (nextChapter) downloadChapter(getNextChapter());
   }, [audioRef, downloadChapter, getNextChapter]);
 
   // Save config
@@ -226,14 +235,8 @@ function App() {
   console.log({ audioRef, books, selectedBook });
 
   switch (true) {
-    case !ready:
+    case !books:
       return (<LoadingSpinner />);
-    // return (
-    //   <div>
-    //     <h1>Welcome!</h1>
-    //     <button onClick={() => setReady(true)}>Start</button>
-    //   </div>
-    // );
     case !selectedBook:
       return (
         <div>
@@ -250,9 +253,9 @@ function App() {
     case !!selectedBook:
       return (
         <div>
-          <h1>{selectedBook.title.main}</h1>
-          <button onClick={() => setSelectedBook(undefined)}>Go back</button>
+          <a href="#" onClick={() => setSelectedBook(undefined)}>Go to books</a>
           <br />
+          <h1>{selectedBook.title.main}</h1>
           <br />
           <audio
             controls
@@ -267,6 +270,7 @@ function App() {
           </audio>
           <br />
           <br />
+          <h2>Chapters</h2>
           <ul>
             {selectedBook.nav.toc.map((chapter, index) => (
               <li key={index}>
