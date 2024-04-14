@@ -126,7 +126,7 @@ const updateConfig = (partial) => setConfig({ ...getConfig(CONFIG_KEY), ...parti
 const tryGetStorage = async ({ email, password }) => {
   // console.log('tryGetStorage', { email, password })
   const storage = new Storage({
-    userAgent: 'BookPlayerApplication/1.0',
+    userAgent: null, //'BookPlayerApplication/1.0',
     email,
     password
   });
