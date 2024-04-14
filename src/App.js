@@ -129,7 +129,7 @@ const getConfig = () => JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
 const updateConfig = (partial) => setConfig({ ...getConfig(CONFIG_KEY), ...partial });
 
 const tryGetStorage = async ({ email, password }) => {
-  console.log('tryGetStorage', { email, password })
+  // console.log('tryGetStorage', { email, password })
   const storage = new Storage({
     userAgent: 'BookPlayerApplication/1.0',
     email,
@@ -205,19 +205,19 @@ function App() {
   useEffect(() => {
     if (!selectedBook) return;
     const chapters = getChapters(selectedBook);
-    let chapter = chapters[0];
+    let chapter;
     if (shouldResumeLastSession) {
       // Resume chapter
       shouldResumeLastSession = false;
       const { chapterId, currentTime } = getConfig();
-      chapter = chapters.filter(it => getChapterId(it) === chapterId)[0]
+      chapter = chapters.filter(it => getChapterId(it) === chapterId)[0];
       console.log('resume chapter', { chapterId, currentTime, chapter, chapters });
       overrideCurrentTime = currentTime;
     }
-    setSelectedChapter(chapter);
+    setSelectedChapter(chapter || chapters[0]);
   }, [selectedBook]);
 
-  // Play Selected chapter
+  // Play selected chapter
   useEffect(() => {
     if (!selectedChapter) return;
     playMedia(selectedChapter)
@@ -309,7 +309,6 @@ function App() {
               Your browser does not support the audio element.
             </audio>
             <br />
-            <br />
             <h2>Chapters</h2>
             <ul>
               {selectedBook.nav.toc.map((chapter, index) => (
@@ -329,6 +328,7 @@ function App() {
           </div>
         );
       case !!books:
+        shouldResumeLastSession = false;
         return (
           <div>
             <a href="#" onClick={() => validateCredentials()}>Logout</a>
