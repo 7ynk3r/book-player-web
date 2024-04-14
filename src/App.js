@@ -12,6 +12,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Storage } from 'megajs'
 import Dexie from 'dexie';
+import { LoadingSpinner } from './LoadingSpinner';
 
 // Define the MEGA storage
 const storage = new Storage({
@@ -150,19 +151,13 @@ function App() {
     setSelectedChapter(chapter);
   }, [books, ready]);
 
-  // Selected book
+  // Clear chapter if book was cleared
   useEffect(() => {
-    if (!selectedBook) {
-      setSelectedChapter(undefined);
-    }
-    console.log('selectedBook', { selectedBook })
-    // if (selectedBook) {
-    //   // console.log('selectedBook', selectedBook.spine.map(it => it.path))
-    //   console.log('selectedBook', selectedBook.spine.map(it => ({ file: getFileName(it.path), duration: it['audio-duration'] })))
-    // }
+    if (selectedBook) return;
+    setSelectedChapter(undefined);
   }, [selectedBook]);
 
-  // Selected chapter
+  // Play Selected chapter
   useEffect(() => {
     if (!selectedChapter) return;
     playMedia(selectedChapter)
@@ -232,12 +227,13 @@ function App() {
 
   switch (true) {
     case !ready:
-      return (
-        <div>
-          <h1>Welcome!</h1>
-          <button onClick={() => setReady(true)}>Start</button>
-        </div>
-      );
+      return (<LoadingSpinner />);
+    // return (
+    //   <div>
+    //     <h1>Welcome!</h1>
+    //     <button onClick={() => setReady(true)}>Start</button>
+    //   </div>
+    // );
     case !selectedBook:
       return (
         <div>
