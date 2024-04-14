@@ -1,5 +1,6 @@
 /**
  * TODO
+ * - login
  * - give the impression of a single audio file
  * - update current chapter when the chapter is in the same file
  * - show book description and subtitle 
@@ -10,14 +11,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Storage } from 'megajs'
 import Dexie from 'dexie';
+import useAsyncEffect from './useAsyncEffect'
 import LoadingSpinner from './LoadingSpinner';
+import LoginForm from './LoginForm';
 
 // Define the MEGA storage
 const storage = new Storage({
   email: 'elmaildejuan2@gmail.com',
   password: 'uKv94CV2.zK4tY6',
   userAgent: 'BookPlayerApplication/1.0'
-})
+});
 
 // Define the database schema
 const db = new Dexie('AudioDB');
@@ -25,6 +28,17 @@ const db = new Dexie('AudioDB');
 db.version(1).stores({
   files: '++id, &name',
 });
+
+// HtmlRenderer
+const HtmlRenderer = ({ htmlContent }) => {
+  return (
+    <div
+      dangerouslySetInnerHTML={{
+        __html: htmlContent,
+      }}
+    />
+  );
+};
 
 // Assert
 function assert(condition, message) {
@@ -37,12 +51,11 @@ function assert(condition, message) {
 const downloadCache = {};
 const getCached = async (name, getData, options = {}) => {
   if (!downloadCache[name]) {
-    downloadCache[name] = getCached2(name, getData, options);
+    downloadCache[name] = __getCached(name, getData, options);
   }
   return downloadCache[name];
 }
-
-const getCached2 = async (name, getData, options = {}) => {
+const __getCached = async (name, getData, options = {}) => {
   const { noCache, useLocalStorage } = options;
   // const { noCache, useLocalStorage } = { noCache: true };
   let data = null
@@ -78,12 +91,12 @@ const getCached2 = async (name, getData, options = {}) => {
   return data
 }
 
-const getFiles = async (options = {}) => {
-  return getCached('__files__', async () => {
-    await storage.ready;
-    return db.files.where('name');
-  }, options);
-};
+// const getFiles = async (options = {}) => {
+//   return getCached('__files__', async () => {
+//     await storage.ready;
+//     return db.files.where('name');
+//   }, options);
+// };
 
 // Useful func
 const getFileName = (path) => {
@@ -115,57 +128,70 @@ const setConfig = (config) => localStorage.setItem(CONFIG_KEY, JSON.stringify(co
 const getConfig = () => JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
 const updateConfig = (partial) => setConfig({ ...getConfig(CONFIG_KEY), ...partial });
 
+// NOTE: we can move this into `state` 
 let overrideCurrentTime = null;
+let shouldResumeLastSession = true;
 
 // App ////////////////////////////////////
 function App() {
-  // const [ready, setReady] = useState();
+  const [loading, setLoading] = useState(true);
+  // const [storage, setStorage] = useState();
   const [books, setBooks] = useState();
   const [selectedBook, setSelectedBook] = useState();
   const [selectedChapter, setSelectedChapter] = useState();
-  // const [currentTime, setCurrentTime] = useState();
   const audioRef = useRef(null);
 
+  // useAsyncEffect(async () => {
+  //   const creds = JSON.parse(localStorage.getItem('creds'));
+  //   if (creds) {
+  //     const storage = new Storage({
+  //       email: 'elmaildejuan2@gmail.com',
+  //       password: 'uKv94CV2.zK4tY6',
+  //       userAgent: 'BookPlayerApplication/1.0'
+  //     });
+  //     setStorage(storage);
+  //   }
+  // }, []);
+
   // Load books
-  useEffect(() => {
-    const load = async () => {
-      await storage.ready
-      const files = Object.values(storage.files);
-      console.log({ files, File })
-      let bookFiles = files.filter(file => file.name === 'openbook.json')
+  useAsyncEffect(async () => {
+    await storage.ready
+    const files = Object.values(storage.files);
+    console.log({ files, File })
+    let bookFiles = files.filter(file => file.name === 'openbook.json')
 
-      // TODO: Revert to show all books
-      bookFiles = [bookFiles[0]]
-      const books = (await Promise.all(bookFiles.map(async file => {
-        const data = await getFile(file)
-        const book = JSON.parse(data);
-        return { ...book, file }
-      }))).sort((a, b) => a.title.main.localeCompare(b.title.main))
+    // TODO: Revert to show all books
+    bookFiles = [bookFiles[0]]
+    const books = (await Promise.all(bookFiles.map(async file => {
+      const data = await getFile(file)
+      const book = JSON.parse(data);
+      return { ...book, file }
+    }))).sort((a, b) => a.title.main.localeCompare(b.title.main))
 
-      setBooks(books);
-    }
-    load();
-  }, []);
+    setBooks(books);
+  }, [storage]);
 
   // Resume or load first book
   useEffect(() => {
-    if (!books) return;
+    if (!books || !shouldResumeLastSession) return;
     const { bookId, chapterId, currentTime } = getConfig();
     console.log('resume', { bookId, chapterId, currentTime });
     const book = books.filter(it => getBookId(it) === bookId)[0];
     if (!book) return;
-    setSelectedBook(book)
+    setSelectedBook(book);
     const chapters = getChapters(book);
     const chapter = chapters.filter(it => getChapterId(it) === chapterId)[0]
     if (!chapter) return;
     overrideCurrentTime = currentTime;
     setSelectedChapter(chapter);
+    shouldResumeLastSession = false;
   }, [books]);
 
   // Clear chapter if book was cleared
   useEffect(() => {
-    if (selectedBook) return;
-    setSelectedChapter(undefined);
+    if (shouldResumeLastSession) return;
+    const chapter = getChapters(selectedBook)[0];
+    setSelectedChapter(chapter);
   }, [selectedBook]);
 
   // Play Selected chapter
@@ -193,8 +219,9 @@ function App() {
     const files = selectedBook.file.parent.children;
     const mp3File = files.filter(file => file.name.endsWith(fileName))[0];
     assert(mp3File, `mp3 part "${fileName}" in path "${filePath}" not found in [${files.map(it => it.name)}]`)
+
     const data = await getFile(mp3File);
-    return { data, name: fileName, path: filePath, startsAtSeconds }
+    return { data, name: fileName, path: filePath, startsAtSeconds };
   }, [selectedBook]);
 
   const playMedia = useCallback(async (chapter) => {
@@ -239,7 +266,7 @@ function App() {
       return (<LoadingSpinner />);
     case !selectedBook:
       return (
-        <div>
+        <div style={{ padding: '20px' }}>
           <h1>Books</h1>
           <ul>
             {books.map((book, index) => (
@@ -252,7 +279,7 @@ function App() {
       );
     case !!selectedBook:
       return (
-        <div>
+        <div style={{ padding: '20px' }}>
           <a href="#" onClick={() => setSelectedBook(undefined)}>Go to books</a>
           <br />
           <h1>{selectedBook.title.main}</h1>
@@ -284,6 +311,8 @@ function App() {
               </li>
             ))}
           </ul>
+          <h2>Description</h2>
+          <HtmlRenderer htmlContent={selectedBook.description.full} />
         </div>
       );
     default:
