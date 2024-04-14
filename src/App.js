@@ -111,7 +111,10 @@ const getFilePath = (file) => {
 }
 
 const getFile = async (file, options = {}) => {
-  return getCached(getFilePath(file), () => file.downloadBuffer(), options);
+  return getCached(getFilePath(file), () => {
+    file.api.userAgent = null;
+    return file.downloadBuffer();
+  }, options);
 }
 
 const getBookId = (book) => book['-odread-buid'];
