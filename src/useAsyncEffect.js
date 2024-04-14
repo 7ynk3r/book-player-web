@@ -32,7 +32,7 @@ function useAsyncEffect(callback, dependencies) {
     return () => {
       hasUnmounted.current = true;
     };
-  }, dependencies);
+  }, dependencies); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 export default useAsyncEffect;

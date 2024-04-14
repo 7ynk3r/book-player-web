@@ -8,19 +8,14 @@
  * - avoid initial re-load of the file tree: we cannot serialize the files...
  */
 
+/* eslint-disable jsx-a11y/anchor-is-valid */
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Storage } from 'megajs'
 import Dexie from 'dexie';
 import useAsyncEffect from './useAsyncEffect'
 import LoadingSpinner from './LoadingSpinner';
 import LoginForm from './LoginForm';
-
-// Define the MEGA storage
-const storage = new Storage({
-  email: 'elmaildejuan2@gmail.com',
-  password: 'uKv94CV2.zK4tY6',
-  userAgent: 'BookPlayerApplication/1.0'
-});
 
 // Define the database schema
 const db = new Dexie('AudioDB');
@@ -165,64 +160,6 @@ function App() {
     return !!storage;
   }, [setLoading]);
 
-  // Try login
-  useAsyncEffect(async () => {
-    const creds = JSON.parse(localStorage.getItem('creds')) || {};
-    validateCredentials(creds)
-    // const creds = { email: 'elmaildejuan2@gmail.com', password: 'uKv94CV2.zK4tY6---' }
-  }, [validateCredentials]);
-
-  // Load books
-  useAsyncEffect(async () => {
-    if (!storage) return;
-    // await storage.ready
-    const files = Object.values(storage.files);
-    console.log({ files, File })
-    let bookFiles = files.filter(file => file.name === 'openbook.json')
-
-    // TODO: Revert to show all books
-    // bookFiles = [bookFiles[0]]
-    const books = (await Promise.all(bookFiles.map(async file => {
-      const data = await getFile(file)
-      const book = JSON.parse(data);
-      return { ...book, file }
-    }))).sort((a, b) => a.title.main.localeCompare(b.title.main))
-
-    setBooks(books);
-  }, [storage]);
-
-  // Resume book
-  useEffect(() => {
-    if (!books || !shouldResumeLastSession) return;
-    const { bookId } = getConfig();
-    console.log('resume book', { bookId, books });
-    const book = books.filter(it => getBookId(it) === bookId)[0];
-    if (!book) return;
-    setSelectedBook(book);
-  }, [books]);
-
-  // Select first chapter
-  useEffect(() => {
-    if (!selectedBook) return;
-    const chapters = getChapters(selectedBook);
-    let chapter;
-    if (shouldResumeLastSession) {
-      // Resume chapter
-      shouldResumeLastSession = false;
-      const { chapterId, currentTime } = getConfig();
-      chapter = chapters.filter(it => getChapterId(it) === chapterId)[0];
-      console.log('resume chapter', { chapterId, currentTime, chapter, chapters });
-      overrideCurrentTime = currentTime;
-    }
-    setSelectedChapter(chapter || chapters[0]);
-  }, [selectedBook]);
-
-  // Play selected chapter
-  useEffect(() => {
-    if (!selectedChapter) return;
-    playMedia(selectedChapter)
-  }, [selectedChapter]);
-
   const getNextChapter = useCallback(() => {
     const chapters = [...selectedBook.nav.toc].reverse();
     console.log('getNextChapter', { chapters, selectedChapter })
@@ -282,6 +219,65 @@ function App() {
     });
   }, [audioRef, selectedBook, selectedChapter]);
 
+
+  // Try login
+  useAsyncEffect(async () => {
+    const creds = JSON.parse(localStorage.getItem('creds')) || {};
+    validateCredentials(creds)
+    // const creds = { email: 'elmaildejuan2@gmail.com', password: 'uKv94CV2.zK4tY6---' }
+  }, [validateCredentials]);
+
+  // Load books
+  useAsyncEffect(async () => {
+    if (!storage) return;
+    // await storage.ready
+    const files = Object.values(storage.files);
+    console.log({ files, File })
+    let bookFiles = files.filter(file => file.name === 'openbook.json')
+
+    // TODO: Revert to show all books
+    // bookFiles = [bookFiles[0]]
+    const books = (await Promise.all(bookFiles.map(async file => {
+      const data = await getFile(file)
+      const book = JSON.parse(data);
+      return { ...book, file }
+    }))).sort((a, b) => a.title.main.localeCompare(b.title.main))
+
+    setBooks(books);
+  }, [storage]);
+
+  // Resume book
+  useEffect(() => {
+    if (!books || !shouldResumeLastSession) return;
+    const { bookId } = getConfig();
+    console.log('resume book', { bookId, books });
+    const book = books.filter(it => getBookId(it) === bookId)[0];
+    if (!book) return;
+    setSelectedBook(book);
+  }, [books]);
+
+  // Select first chapter
+  useEffect(() => {
+    if (!selectedBook) return;
+    const chapters = getChapters(selectedBook);
+    let chapter;
+    if (shouldResumeLastSession) {
+      // Resume chapter
+      shouldResumeLastSession = false;
+      const { chapterId, currentTime } = getConfig();
+      chapter = chapters.filter(it => getChapterId(it) === chapterId)[0];
+      console.log('resume chapter', { chapterId, currentTime, chapter, chapters });
+      overrideCurrentTime = currentTime;
+    }
+    setSelectedChapter(chapter || chapters[0]);
+  }, [selectedBook]);
+
+  // Play selected chapter
+  useEffect(() => {
+    if (!selectedChapter) return;
+    playMedia(selectedChapter)
+  }, [selectedChapter, playMedia]);
+
   console.log({ audioRef, books, selectedBook });
 
   const Content = () => {
@@ -328,7 +324,6 @@ function App() {
           </div>
         );
       case !!books:
-        shouldResumeLastSession = false;
         return (
           <div>
             <a href="#" onClick={() => validateCredentials()}>Logout</a>

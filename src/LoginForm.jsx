@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 
 function LoginForm({ validateCredentials, onSuccess }) {
   // Define state variables for email and password
