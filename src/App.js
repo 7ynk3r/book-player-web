@@ -192,7 +192,7 @@ function App() {
     audioRef.current.pause();
 
     const { data, startsAtSeconds } = await downloadChapter(chapter);
-    const url = window.URL.createObjectURL(new Blob([data]));
+    const url = window.URL.createObjectURL(new Blob([data], { type: 'audio/mpeg' }));
     updateConfig({ currentTime: overrideCurrentTime || startsAtSeconds });
     overrideCurrentTime = null; // clear the override 
 
