@@ -128,6 +128,22 @@ const setConfig = (config) => localStorage.setItem(CONFIG_KEY, JSON.stringify(co
 const getConfig = () => JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
 const updateConfig = (partial) => setConfig({ ...getConfig(CONFIG_KEY), ...partial });
 
+const tryGetStorage = async ({ email, password }) => {
+  console.log('tryGetStorage', { email, password })
+  const storage = new Storage({
+    userAgent: 'BookPlayerApplication/1.0',
+    email,
+    password
+  });
+  try {
+    await storage.ready;
+    return storage;
+  }
+  catch {
+    return undefined
+  }
+};
+
 // NOTE: we can move this into `state` 
 let overrideCurrentTime = null;
 let shouldResumeLastSession = true;
@@ -135,33 +151,37 @@ let shouldResumeLastSession = true;
 // App ////////////////////////////////////
 function App() {
   const [loading, setLoading] = useState(true);
-  // const [storage, setStorage] = useState();
+  const [storage, setStorage] = useState();
   const [books, setBooks] = useState();
   const [selectedBook, setSelectedBook] = useState();
   const [selectedChapter, setSelectedChapter] = useState();
   const audioRef = useRef(null);
 
-  // useAsyncEffect(async () => {
-  //   const creds = JSON.parse(localStorage.getItem('creds'));
-  //   if (creds) {
-  //     const storage = new Storage({
-  //       email: 'elmaildejuan2@gmail.com',
-  //       password: 'uKv94CV2.zK4tY6',
-  //       userAgent: 'BookPlayerApplication/1.0'
-  //     });
-  //     setStorage(storage);
-  //   }
-  // }, []);
+  const validateCredentials = useCallback(async (creds = {}) => {
+    const storage = await tryGetStorage(creds);
+    localStorage.setItem('creds', JSON.stringify(creds || {}));
+    setStorage(storage);
+    setLoading(false)
+    return !!storage;
+  }, [setLoading]);
+
+  // Try login
+  useAsyncEffect(async () => {
+    const creds = JSON.parse(localStorage.getItem('creds')) || {};
+    validateCredentials(creds)
+    // const creds = { email: 'elmaildejuan2@gmail.com', password: 'uKv94CV2.zK4tY6---' }
+  }, [validateCredentials]);
 
   // Load books
   useAsyncEffect(async () => {
-    await storage.ready
+    if (!storage) return;
+    // await storage.ready
     const files = Object.values(storage.files);
     console.log({ files, File })
     let bookFiles = files.filter(file => file.name === 'openbook.json')
 
     // TODO: Revert to show all books
-    bookFiles = [bookFiles[0]]
+    // bookFiles = [bookFiles[0]]
     const books = (await Promise.all(bookFiles.map(async file => {
       const data = await getFile(file)
       const book = JSON.parse(data);
@@ -171,26 +191,29 @@ function App() {
     setBooks(books);
   }, [storage]);
 
-  // Resume or load first book
+  // Resume book
   useEffect(() => {
     if (!books || !shouldResumeLastSession) return;
-    const { bookId, chapterId, currentTime } = getConfig();
-    console.log('resume', { bookId, chapterId, currentTime });
+    const { bookId } = getConfig();
+    console.log('resume book', { bookId, books });
     const book = books.filter(it => getBookId(it) === bookId)[0];
     if (!book) return;
     setSelectedBook(book);
-    const chapters = getChapters(book);
-    const chapter = chapters.filter(it => getChapterId(it) === chapterId)[0]
-    if (!chapter) return;
-    overrideCurrentTime = currentTime;
-    setSelectedChapter(chapter);
-    shouldResumeLastSession = false;
   }, [books]);
 
-  // Clear chapter if book was cleared
+  // Select first chapter
   useEffect(() => {
-    if (shouldResumeLastSession) return;
-    const chapter = getChapters(selectedBook)[0];
+    if (!selectedBook) return;
+    const chapters = getChapters(selectedBook);
+    let chapter = chapters[0];
+    if (shouldResumeLastSession) {
+      // Resume chapter
+      shouldResumeLastSession = false;
+      const { chapterId, currentTime } = getConfig();
+      chapter = chapters.filter(it => getChapterId(it) === chapterId)[0]
+      console.log('resume chapter', { chapterId, currentTime, chapter, chapters });
+      overrideCurrentTime = currentTime;
+    }
     setSelectedChapter(chapter);
   }, [selectedBook]);
 
@@ -261,63 +284,74 @@ function App() {
 
   console.log({ audioRef, books, selectedBook });
 
-  switch (true) {
-    case !books:
-      return (<LoadingSpinner />);
-    case !selectedBook:
-      return (
-        <div style={{ padding: '20px' }}>
-          <h1>Books</h1>
-          <ul>
-            {books.map((book, index) => (
-              <li key={index}>
-                <a href="#" onClick={() => setSelectedBook(book)}>{book.title.main}</a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      );
-    case !!selectedBook:
-      return (
-        <div style={{ padding: '20px' }}>
-          <a href="#" onClick={() => setSelectedBook(undefined)}>Go to books</a>
-          <br />
-          <h1>{selectedBook.title.main}</h1>
-          <br />
-          <audio
-            controls
-            autoPlay
-            ref={audioRef}
-            onRateChange={handleConfigChange}
-            onVolumeChange={handleConfigChange}
-            onTimeUpdate={handleConfigChange}
-            onEnded={() => setSelectedChapter(getNextChapter())}
-          >
-            Your browser does not support the audio element.
-          </audio>
-          <br />
-          <br />
-          <h2>Chapters</h2>
-          <ul>
-            {selectedBook.nav.toc.map((chapter, index) => (
-              <li key={index}>
-                <a href="#"
-                  style={{
-                    fontWeight: chapter === selectedChapter ? 'bold' : 'normal',
-                  }}
-                  onClick={() => setSelectedChapter(chapter)}>
-                  {chapter.title}
-                </a>
-              </li>
-            ))}
-          </ul>
-          <h2>Description</h2>
-          <HtmlRenderer htmlContent={selectedBook.description.full} />
-        </div>
-      );
-    default:
-      return undefined;
+  const Content = () => {
+    switch (true) {
+      case loading:
+        return (<LoadingSpinner />);
+      case !storage:
+        return (<LoginForm validateCredentials={validateCredentials} />);
+      case !!selectedBook:
+        return (
+          <div>
+            <a href="#" onClick={() => setSelectedBook(undefined)}>Go to books</a>
+            <br />
+            <h1>{selectedBook.title.main}</h1>
+            <br />
+            <audio
+              controls
+              autoPlay
+              ref={audioRef}
+              onRateChange={handleConfigChange}
+              onVolumeChange={handleConfigChange}
+              onTimeUpdate={handleConfigChange}
+              onEnded={() => setSelectedChapter(getNextChapter())}
+            >
+              Your browser does not support the audio element.
+            </audio>
+            <br />
+            <br />
+            <h2>Chapters</h2>
+            <ul>
+              {selectedBook.nav.toc.map((chapter, index) => (
+                <li key={index}>
+                  <a href="#"
+                    style={{
+                      fontWeight: chapter === selectedChapter ? 'bold' : 'normal',
+                    }}
+                    onClick={() => setSelectedChapter(chapter)}>
+                    {chapter.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <h2>Description</h2>
+            <HtmlRenderer htmlContent={selectedBook.description.full} />
+          </div>
+        );
+      case !!books:
+        return (
+          <div>
+            <a href="#" onClick={() => validateCredentials()}>Logout</a>
+            <br />
+            <h1>Books</h1>
+            <ul>
+              {books.map((book, index) => (
+                <li key={index}>
+                  <a href="#" onClick={() => setSelectedBook(book)}>{book.title.main}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      default:
+        return undefined;
+    }
   }
+  return (
+    <div style={{ padding: '20px' }}>
+      <Content />
+    </div>
+  )
 
 }
 
