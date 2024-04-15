@@ -146,7 +146,7 @@ const tryGetStorage = async ({ email, password }) => {
 };
 
 const statusToIcon = {
-  'loading': '⏳',
+  'loading': '🔄',
   'ok': '✅',
   'error': '❗',
   '': ''
