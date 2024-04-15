@@ -68,3 +68,11 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+### Netlify
+
+You can find the app at 
+https://main--fancy-alfajores-a86dd2.netlify.app/#
+
+The app deploys automatically using 
+https://app.netlify.com/sites/fancy-alfajores-a86dd2/deploys
