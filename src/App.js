@@ -165,8 +165,12 @@ function App() {
   const [selectedChapter, setSelectedChapter] = useState();
   const audioRef = useRef(null);
 
-  const validateCredentials = useCallback(async (creds = {}) => {
-    const storage = await tryGetStorage(creds);
+  const validateCredentials = useCallback(async (creds) => {
+    if (!creds) {
+      localStorage.clear();
+      await db.files.clear();
+    }
+    const storage = await tryGetStorage(creds || {});
     localStorage.setItem('creds', JSON.stringify(creds || {}));
     setStorage(storage);
     setLoading(false)
@@ -218,7 +222,7 @@ function App() {
 
   // Try login
   useAsyncEffect(async () => {
-    const creds = JSON.parse(localStorage.getItem('creds')) || {};
+    const creds = JSON.parse(localStorage.getItem('creds'));
     validateCredentials(creds)
   }, [validateCredentials]);
 
