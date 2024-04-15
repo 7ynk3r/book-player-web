@@ -13,6 +13,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Storage } from 'megajs'
 import Dexie from 'dexie';
+import { useLiveQuery } from "dexie-react-hooks";
+import _ from 'lodash';
+import { Buffer } from 'buffer';
+
 import useAsyncEffect from './useAsyncEffect'
 import LoadingSpinner from './LoadingSpinner';
 import LoginForm from './LoginForm';
@@ -21,7 +25,7 @@ import LoginForm from './LoginForm';
 const db = new Dexie('AudioDB');
 
 db.version(1).stores({
-  files: '++id, &name',
+  files: '++id, &name, bookId',
 });
 
 // HtmlRenderer
@@ -44,54 +48,48 @@ function assert(condition, message) {
 
 // Cache
 const downloadCache = {};
-const getCached = async (name, getData, options = {}) => {
+const getCached = async (name, getData, metadata, options) => {
   if (!downloadCache[name]) {
-    downloadCache[name] = __getCached(name, getData, options);
+    downloadCache[name] = _getCached(name, getData, metadata, options);
   }
   return downloadCache[name];
 }
-const __getCached = async (name, getData, options = {}) => {
-  const { noCache, useLocalStorage } = options;
+const _getCached = async (name, getData, metadata = {}, { noCache, onlyCache } = {}) => {
   // const { noCache, useLocalStorage } = { noCache: true };
   let data = null
   if (!noCache) {
-    if (useLocalStorage) {
-      data = localStorage.getItem(name)
-    }
-    else {
-      data = await db.files.where('name').equals(name).first()
-      data = data?.data
-    }
+    data = await db.files.where('name').equals(name).first();
+    data = data?.data;
   }
-  if (data) {
-    console.log(`File "${name}" found locally`)
+  if (data || onlyCache) {
+    console.log(`File "${name}" ${data ? 'found' : 'not found'} locally`);
     return data;
   }
   else {
-    console.info(`File "${name}" not found locally`)
+    console.info(`File "${name}" not found locally`);
   }
-  data = await getData();
-  console.info(`File "${name}" downloaded locally`)
-  if (name.endsWith('.json')) {
-    data = data.toString()
+  let fileId = null;
+  if (!noCache) {
+    fileId = await db.files.put({ ...metadata, name, status: 'loading' });
+  }
+  let error = null;
+  try {
+    data = await getData();
+    console.info(`File "${name}" downloaded locally`);
+    if (name.endsWith('.json')) {
+      data = data.toString();
+    }
+  }
+  catch (ex) {
+    console.info(`File "${name}" failed to be downloaded`, ex);
+    error = ex;
   }
   if (!noCache) {
-    if (useLocalStorage) {
-      localStorage.setItem(name, data.toString());
-    }
-    else {
-      await db.files.add({ name, data })
-    }
+    assert(fileId, `File "${name}" as an empty fileId `);
+    await db.files.update(fileId, { data, status: error ? 'error' : 'ok' });
   }
-  return data
+  return data;
 }
-
-// const getFiles = async (options = {}) => {
-//   return getCached('__files__', async () => {
-//     await storage.ready;
-//     return db.files.where('name');
-//   }, options);
-// };
 
 // Useful func
 const getFileName = (path) => {
@@ -110,11 +108,16 @@ const getFilePath = (file) => {
   return name
 }
 
-const getFile = async (file, options = {}) => {
-  return getCached(getFilePath(file), () => {
+const getFile = async (file, metadata, options) => {
+  const path = getFilePath(file);
+  return getCached(path, async () => {
     file.api.userAgent = null;
-    return file.downloadBuffer();
-  }, options);
+    const data = await file.downloadBuffer();
+    if (path.endsWith('.mp3')) {
+      return new Blob([data], { type: 'audio/mpeg' });
+    }
+    return data;
+  }, metadata, options);
 }
 
 const getBookId = (book) => book['-odread-buid'];
@@ -142,6 +145,13 @@ const tryGetStorage = async ({ email, password }) => {
   }
 };
 
+const statusToIcon = {
+  'loading': '⏳',
+  'ok': '✅',
+  'error': '❗',
+  '': ''
+}
+
 // NOTE: we can move this into `state` 
 let overrideCurrentTime = null;
 let shouldResumeLastSession = true;
@@ -165,16 +175,19 @@ function App() {
 
   const getNextChapter = useCallback(() => {
     const chapters = [...selectedBook.nav.toc].reverse();
+    const { name } = getFileName(selectedChapter.path);
     console.log('getNextChapter', { chapters, selectedChapter })
     for (let i = 0; i < chapters.length; i++) {
-      if (chapters[i].path === selectedChapter.path) {
+      if (getFileName(chapters[i].path).name === name) {
         return chapters[i - 1];
       }
     }
     assert(false, 'The current chapter was not found');
   }, [selectedBook, selectedChapter])
 
+  // NOTE: We can take this out of the component
   const downloadChapter = useCallback(async (chapter) => {
+    if (!selectedBook) return;
     console.log('downloadChapter', { chapter, selectedBook });
     assert(chapter, "chapter must be defined");
 
@@ -183,32 +196,13 @@ function App() {
     const mp3File = files.filter(file => file.name.endsWith(fileName))[0];
     assert(mp3File, `mp3 part "${fileName}" in path "${filePath}" not found in [${files.map(it => it.name)}]`)
 
-    const data = await getFile(mp3File);
+    const data = await getFile(mp3File, {
+      bookId: getBookId(selectedBook),
+      shortName: getFileName(mp3File.name).name
+      // chapterId: getChapterId(chapter) // a file can belong to many chapters
+    });
     return { data, name: fileName, path: filePath, startsAtSeconds };
   }, [selectedBook]);
-
-  const playMedia = useCallback(async (chapter) => {
-    console.log('playMedia', { chapter });
-    audioRef.current.pause();
-
-    const { data, startsAtSeconds } = await downloadChapter(chapter);
-    const url = window.URL.createObjectURL(new Blob([data], { type: 'audio/mpeg' }));
-    updateConfig({ currentTime: overrideCurrentTime || startsAtSeconds });
-    overrideCurrentTime = null; // clear the override 
-
-    audioRef.current.src = url
-    audioRef.current.load();
-
-    // Load config
-    const config = getConfig();
-    if (config.playbackRate) audioRef.current.playbackRate = config.playbackRate;
-    if (config.currentTime) audioRef.current.currentTime = config.currentTime;
-    if (config.volume) audioRef.current.volume = config.volume;
-
-    // Download next chapter 
-    const nextChapter = getNextChapter();
-    if (nextChapter) downloadChapter(getNextChapter());
-  }, [audioRef, downloadChapter, getNextChapter]);
 
   // Save config
   const handleConfigChange = useCallback(() => {
@@ -222,12 +216,10 @@ function App() {
     });
   }, [audioRef, selectedBook, selectedChapter]);
 
-
   // Try login
   useAsyncEffect(async () => {
     const creds = JSON.parse(localStorage.getItem('creds')) || {};
     validateCredentials(creds)
-    // const creds = { email: 'elmaildejuan2@gmail.com', password: 'uKv94CV2.zK4tY6---' }
   }, [validateCredentials]);
 
   // Load books
@@ -238,10 +230,8 @@ function App() {
     console.log({ files, File })
     let bookFiles = files.filter(file => file.name === 'openbook.json')
 
-    // TODO: Revert to show all books
-    // bookFiles = [bookFiles[0]]
     const books = (await Promise.all(bookFiles.map(async file => {
-      const data = await getFile(file)
+      const data = await getFile(file);
       const book = JSON.parse(data);
       return { ...book, file }
     }))).sort((a, b) => a.title.main.localeCompare(b.title.main))
@@ -278,78 +268,125 @@ function App() {
   // Play selected chapter
   useEffect(() => {
     if (!selectedChapter) return;
-    playMedia(selectedChapter)
-  }, [selectedChapter, playMedia]);
+    downloadChapter(selectedChapter);
+  }, [selectedChapter, downloadChapter, audioRef]);
 
-  console.log({ audioRef, books, selectedBook });
+  const files = useLiveQuery(async () => {
+    if (!selectedBook) return;
+    console.log('files', { bookId: getBookId(selectedBook), selectedBook })
+    const files = await db.files
+      .where('bookId')
+      .equals(getBookId(selectedBook))
+      .toArray();
+    return _.keyBy(files, 'shortName');
+  }, [selectedBook], {});
 
-  const Content = () => {
-    switch (true) {
-      case loading:
-        return (<LoadingSpinner />);
-      case !storage:
-        return (<LoginForm validateCredentials={validateCredentials} />);
-      case !!selectedBook:
-        return (
-          <div>
-            <a href="#" onClick={() => setSelectedBook(undefined)}>Go to books</a>
-            <br />
-            <h1>{selectedBook.title.main}</h1>
-            <br />
-            <audio
-              controls
-              autoPlay
-              ref={audioRef}
-              onRateChange={handleConfigChange}
-              onVolumeChange={handleConfigChange}
-              onTimeUpdate={handleConfigChange}
-              onEnded={() => setSelectedChapter(getNextChapter())}
-            >
-              Your browser does not support the audio element.
-            </audio>
-            <br />
-            <h2>Chapters</h2>
-            <ul>
-              {selectedBook.nav.toc.map((chapter, index) => (
-                <li key={index}>
-                  <a href="#"
-                    style={{
-                      fontWeight: chapter === selectedChapter ? 'bold' : 'normal',
-                    }}
-                    onClick={() => setSelectedChapter(chapter)}>
-                    {chapter.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-            <h2>Description</h2>
-            <HtmlRenderer htmlContent={selectedBook.description.full} />
-          </div>
-        );
-      case !!books:
-        return (
-          <div>
-            <a href="#" onClick={() => validateCredentials()}>Logout</a>
-            <br />
-            <h1>Books</h1>
-            <ul>
-              {books.map((book, index) => (
-                <li key={index}>
-                  <a href="#" onClick={() => setSelectedBook(book)}>{book.title.main}</a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        );
-      default:
-        return undefined;
+  const selectedChapterRef = useRef(selectedChapter);
+  useEffect(() => {
+    if (!files || !selectedChapter) return;
+    const { name, startsAtSeconds } = getFileName(selectedChapter.path);
+    const { data } = files[name] || {};
+    if (!data) {
+      // audioRef?.current?.pause();
+      return;
+    };
+    if (selectedChapterRef.current === selectedChapter) return;
+
+    console.log('play time!', { selectedChapter, name, file: files[name] });
+    try {
+      audioRef.current.src = window.URL.createObjectURL(data)
+      audioRef.current.load();
     }
+    catch {
+      console.error(`Couldn't load audio file`, { audioRef, data, Buffer });
+      return;
+    }
+    selectedChapterRef.current = selectedChapter;
+
+    updateConfig({ currentTime: overrideCurrentTime || startsAtSeconds });
+    overrideCurrentTime = null; // clear the override 
+
+    // Load config
+    const config = getConfig();
+    if (config.playbackRate) audioRef.current.playbackRate = config.playbackRate;
+    if (config.currentTime) audioRef.current.currentTime = config.currentTime;
+    if (config.volume) audioRef.current.volume = config.volume;
+
+    // Download next chapter 
+    const nextChapter = getNextChapter();
+    if (nextChapter) downloadChapter(getNextChapter());
+  }, [files, selectedChapter, downloadChapter, getNextChapter, audioRef])
+
+  useEffect(() => {
+    console.log('files', { files });
+  }, [files])
+
+  console.log({ loading, storage: !storage, selectedBook: !!selectedBook, books: !!books });
+
+  switch (true) {
+    case loading:
+      return (<LoadingSpinner />);
+    case !storage:
+      return (
+        <div style={{ padding: '20px' }}>
+          <LoginForm validateCredentials={validateCredentials} />
+        </div>
+      );
+    case !!selectedBook:
+      return (
+        <div style={{ padding: '20px' }}>
+          <a href="#" onClick={() => setSelectedBook(undefined)}>Go to books</a>
+          <br />
+          <h1>{selectedBook.title.main}</h1>
+          <br />
+          <audio
+            controls
+            autoPlay
+            ref={audioRef}
+            onRateChange={handleConfigChange}
+            onVolumeChange={handleConfigChange}
+            onTimeUpdate={handleConfigChange}
+            onEnded={() => setSelectedChapter(getNextChapter())}
+          >
+            Your browser does not support the audio element.
+          </audio>
+          <br />
+          <h2>Chapters</h2>
+          <ul>
+            {selectedBook.nav.toc.map((chapter, index) => (
+              <li key={index}>
+                <a href="#"
+                  style={{
+                    fontWeight: chapter === selectedChapter ? 'bold' : 'normal',
+                  }}
+                  onClick={() => setSelectedChapter(chapter)}>
+                  {chapter.title + ' ' + statusToIcon[((files || {})[getFileName(chapter.path).name]?.status || '')]}
+                </a>
+              </li>
+            ))}
+          </ul>
+          <h2>Description</h2>
+          <HtmlRenderer htmlContent={selectedBook.description.full} />
+        </div>
+      );
+    case !!books:
+      return (
+        <div style={{ padding: '20px' }}>
+          <a href="#" onClick={() => validateCredentials()}>Logout</a>
+          <br />
+          <h1>Books</h1>
+          <ul>
+            {books.map((book, index) => (
+              <li key={index}>
+                <a href="#" onClick={() => setSelectedBook(book)}>{book.title.main}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    default:
+      return undefined;
   }
-  return (
-    <div style={{ padding: '20px' }}>
-      <Content />
-    </div>
-  )
 
 }
 
