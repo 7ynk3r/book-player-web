@@ -173,6 +173,8 @@ const statusToIcon = {
 let overrideCurrentTime = null;
 let shouldResumeLastSession = true;
 
+const initialConfig = getConfig();
+
 // Components ////////////////////////////////////
 
 // const Chapters = (book) => {
@@ -338,6 +340,16 @@ function App() {
     if (nextChapter) downloadChapter(selectedBook, getNextChapter());
   }, [files, selectedBook, selectedChapter, getNextChapter, audioRef])
 
+  // TODO: Make nicer
+  const [playbackRate, setPlaybackRate] = useState(initialConfig.playbackRate);
+  const handlePlaybackRateChange = useCallback((event) => {
+    if (!audioRef) return;
+    const playbackRate = parseFloat(event.target.value);
+    audioRef.current.playbackRate = playbackRate;
+    updateConfig({ playbackRate });
+    setPlaybackRate(playbackRate);
+  }, [setPlaybackRate]);
+
   useEffect(() => {
     console.log('files', { files });
   }, [files])
@@ -358,17 +370,33 @@ function App() {
           <br />
           <h1>{selectedBook.title.main}</h1>
           <br />
-          <audio
-            controls
-            autoPlay
-            ref={audioRef}
-            onRateChange={handleConfigChange}
-            onVolumeChange={handleConfigChange}
-            onTimeUpdate={handleConfigChange}
-            onEnded={() => setSelectedChapter(getNextChapter())}
-          >
-            Your browser does not support the audio element.
-          </audio>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <audio
+              controls
+              autoPlay
+              ref={audioRef}
+              onRateChange={handleConfigChange}
+              onVolumeChange={handleConfigChange}
+              onTimeUpdate={handleConfigChange}
+              onEnded={() => setSelectedChapter(getNextChapter())}
+            >
+              Your browser does not support the audio element.
+            </audio>
+            <select
+              id="playbackRate"
+              value={playbackRate}
+              onChange={handlePlaybackRateChange}
+              style={{ marginLeft: 10 }}
+            >
+              <option value={0.5}>0.5x</option>
+              <option value={0.75}>0.75x</option>
+              <option value={1}>1x</option>
+              <option value={1.25}>1.25x</option>
+              <option value={1.5}>1.5x</option>
+              <option value={1.75}>1.75x</option>
+              <option value={2}>2x</option>
+            </select>
+          </div>
           <br />
           <h2>Chapters</h2>
           <ul>
