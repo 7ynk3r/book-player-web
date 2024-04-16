@@ -342,7 +342,7 @@ function App() {
   }, [files, selectedBook, selectedChapter, getNextChapter, audioRef])
 
   // TODO: Make nicer
-  const [playbackRate, setPlaybackRate] = useState(initialConfig.playbackRate);
+  const [playbackRate, setPlaybackRate] = useState(initialConfig.playbackRate || 1);
   const handlePlaybackRateChange = useCallback((event) => {
     if (!audioRef) return;
     const playbackRate = parseFloat(event.target.value);
@@ -391,7 +391,9 @@ function App() {
             >
               <option value={0.5}>0.5x</option>
               <option value={0.75}>0.75x</option>
+              <option value={0.9}>0.9x</option>
               <option value={1}>1x</option>
+              <option value={1.1}>1.1x</option>
               <option value={1.25}>1.25x</option>
               <option value={1.5}>1.5x</option>
               <option value={1.75}>1.75x</option>
