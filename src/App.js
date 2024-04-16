@@ -1,11 +1,11 @@
 /**
  * TODO
- * - login
+ * - load the schemas automatically, then the storage.await
  * - give the impression of a single audio file
  * - update current chapter when the chapter is in the same file
- * - show book description and subtitle 
  * - load cover
  * - avoid initial re-load of the file tree: we cannot serialize the files...
+ * - break in components
  */
 
 /* eslint-disable jsx-a11y/anchor-is-valid */
@@ -25,7 +25,7 @@ import LoginForm from './LoginForm';
 const db = new Dexie('AudioDB');
 
 db.version(1).stores({
-  files: '++id, &name, bookId',
+  files: 'name, bookId',
 });
 
 // HtmlRenderer
@@ -56,6 +56,8 @@ const getCached = async (name, getData, metadata, options) => {
 }
 const _getCached = async (name, getData, metadata = {}, { noCache, onlyCache } = {}) => {
   // const { noCache, useLocalStorage } = { noCache: true };
+  assert(name, '"name" should be defined');
+  assert(getData, '"getData" should be defined');
   let data = null
   if (!noCache) {
     data = await db.files.where('name').equals(name).first();
@@ -68,9 +70,8 @@ const _getCached = async (name, getData, metadata = {}, { noCache, onlyCache } =
   else {
     console.info(`File "${name}" not found locally`);
   }
-  let fileId = null;
   if (!noCache) {
-    fileId = await db.files.put({ ...metadata, name, status: 'loading' });
+    await db.files.put({ ...metadata, name, status: 'loading' });
   }
   let error = null;
   try {
@@ -85,13 +86,11 @@ const _getCached = async (name, getData, metadata = {}, { noCache, onlyCache } =
     error = ex;
   }
   if (!noCache) {
-    assert(fileId, `File "${name}" as an empty fileId `);
-    await db.files.update(fileId, { data, status: error ? 'error' : 'ok' });
+    await db.files.put({ ...metadata, name, data, status: error ? 'error' : 'ok' });
   }
   return data;
 }
 
-// Useful func
 const getFileName = (path) => {
   const parts = path.split('?')[0].split('-')
   const mp3FileNameWithSeconds = parts[parts.length - 1];
@@ -118,6 +117,24 @@ const getFile = async (file, metadata, options) => {
     }
     return data;
   }, metadata, options);
+}
+
+const downloadChapter = async (selectedBook, chapter) => {
+  console.log('downloadChapter', { chapter, selectedBook });
+  assert(chapter, '"chapter" must be defined');
+  assert(selectedBook, '"selectedBook" must be defined');
+
+  const { name: fileName, path: filePath, startsAtSeconds } = getFileName(chapter.path);
+  const files = selectedBook.file.parent.children;
+  const mp3File = files.filter(file => file.name.endsWith(fileName))[0];
+  assert(mp3File, `mp3 part "${fileName}" in path "${filePath}" not found in [${files.map(it => it.name)}]`)
+
+  const data = await getFile(mp3File, {
+    bookId: getBookId(selectedBook),
+    shortName: getFileName(mp3File.name).name
+    // chapterId: getChapterId(chapter) // a file can belong to many chapters
+  });
+  return { data, name: fileName, path: filePath, startsAtSeconds };
 }
 
 const getBookId = (book) => book['-odread-buid'];
@@ -156,7 +173,16 @@ const statusToIcon = {
 let overrideCurrentTime = null;
 let shouldResumeLastSession = true;
 
-// App ////////////////////////////////////
+// Components ////////////////////////////////////
+
+// const Chapters = (book) => {
+
+// };
+
+// const Books = (books) => {
+
+// }
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [storage, setStorage] = useState();
@@ -188,25 +214,6 @@ function App() {
     }
     assert(false, 'The current chapter was not found');
   }, [selectedBook, selectedChapter])
-
-  // NOTE: We can take this out of the component
-  const downloadChapter = useCallback(async (chapter) => {
-    if (!selectedBook) return;
-    console.log('downloadChapter', { chapter, selectedBook });
-    assert(chapter, "chapter must be defined");
-
-    const { name: fileName, path: filePath, startsAtSeconds } = getFileName(chapter.path);
-    const files = selectedBook.file.parent.children;
-    const mp3File = files.filter(file => file.name.endsWith(fileName))[0];
-    assert(mp3File, `mp3 part "${fileName}" in path "${filePath}" not found in [${files.map(it => it.name)}]`)
-
-    const data = await getFile(mp3File, {
-      bookId: getBookId(selectedBook),
-      shortName: getFileName(mp3File.name).name
-      // chapterId: getChapterId(chapter) // a file can belong to many chapters
-    });
-    return { data, name: fileName, path: filePath, startsAtSeconds };
-  }, [selectedBook]);
 
   // Save config
   const handleConfigChange = useCallback(() => {
@@ -269,12 +276,14 @@ function App() {
     setSelectedChapter(chapter || chapters[0]);
   }, [selectedBook]);
 
-  // Play selected chapter
+  // Download selected chapter
   useEffect(() => {
-    if (!selectedChapter) return;
-    downloadChapter(selectedChapter);
-  }, [selectedChapter, downloadChapter, audioRef]);
+    selectedChapterRef.current = null;
+    if (!selectedBook || !selectedChapter) return;
+    downloadChapter(selectedBook, selectedChapter);
+  }, [selectedBook, selectedChapter]);
 
+  // Query chapters files (mp3)
   const files = useLiveQuery(async () => {
     if (!selectedBook) return;
     console.log('files', { bookId: getBookId(selectedBook), selectedBook })
@@ -285,19 +294,27 @@ function App() {
     return _.keyBy(files, 'shortName');
   }, [selectedBook], {});
 
+  // Play selected chapter
   const selectedChapterRef = useRef(selectedChapter);
   useEffect(() => {
-    if (!files || !selectedChapter) return;
+    if (!files || !selectedChapter) {
+      console.log('Play', 'Ignored: no files nor chapter')
+      return;
+    };
     const { name, startsAtSeconds } = getFileName(selectedChapter.path);
     const { data } = files[name] || {};
     if (!data) {
-      // audioRef?.current?.pause();
+      console.log('Play', 'Pause: the chapter does not have the file yet')
+      audioRef?.current?.pause();
       return;
     };
-    if (selectedChapterRef.current === selectedChapter) return;
+    if (selectedChapterRef.current === selectedChapter) {
+      console.log('Play', 'Ignored: the chapter was the same as before')
+      return
+    };
 
-    console.log('play time!', { selectedChapter, name, file: files[name] });
     try {
+      console.log('Play', 'About to load file into player')
       audioRef.current.src = window.URL.createObjectURL(data)
       audioRef.current.load();
     }
@@ -318,14 +335,12 @@ function App() {
 
     // Download next chapter 
     const nextChapter = getNextChapter();
-    if (nextChapter) downloadChapter(getNextChapter());
-  }, [files, selectedChapter, downloadChapter, getNextChapter, audioRef])
+    if (nextChapter) downloadChapter(selectedBook, getNextChapter());
+  }, [files, selectedBook, selectedChapter, getNextChapter, audioRef])
 
   useEffect(() => {
     console.log('files', { files });
   }, [files])
-
-  console.log({ loading, storage: !storage, selectedBook: !!selectedBook, books: !!books });
 
   switch (true) {
     case loading:
