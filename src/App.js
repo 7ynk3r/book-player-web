@@ -6,6 +6,7 @@
  * - load cover
  * - avoid initial re-load of the file tree: we cannot serialize the files...
  * - break in components
+ * - recreate the db on logout
  */
 
 /* eslint-disable jsx-a11y/anchor-is-valid */
