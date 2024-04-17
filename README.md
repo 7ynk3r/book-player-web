@@ -76,3 +76,8 @@ https://main--fancy-alfajores-a86dd2.netlify.app/#
 
 The app deploys automatically using 
 https://app.netlify.com/sites/fancy-alfajores-a86dd2/deploys
+
+
+### Libby Downloader 
+
+https://github.com/houtianze/libby-audiobook-exporter-browser-extension

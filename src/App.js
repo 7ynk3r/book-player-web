@@ -1,5 +1,6 @@
 /**
  * TODO
+ * - safari mobile not working. print the last and first 10 elements
  * - load the schemas automatically, then the storage.await
  * - give the impression of a single audio file
  * - update current chapter when the chapter is in the same file
@@ -317,8 +318,9 @@ function App() {
     };
 
     try {
-      console.log('Play', 'About to load file into player')
-      audioRef.current.src = window.URL.createObjectURL(data)
+      const url = window.URL.createObjectURL(data)
+      console.log('Play', 'About to load file into player', { url });
+      audioRef.current.src = url;
       audioRef.current.load();
     }
     catch {
@@ -380,6 +382,10 @@ function App() {
               onVolumeChange={handleConfigChange}
               onTimeUpdate={handleConfigChange}
               onEnded={() => setSelectedChapter(getNextChapter())}
+              onError={(e) => {
+                console.log('Error loading audio:', e);
+                console.error('Error loading audio:', e);
+              }}
             >
               Your browser does not support the audio element.
             </audio>
