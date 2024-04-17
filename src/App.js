@@ -7,7 +7,7 @@
  * - load cover
  * - avoid initial re-load of the file tree: we cannot serialize the files...
  * - break in components
- * - recreate the db on logout
+ * - recreate the db on logout. clear db and everything, and call url reload ;)
  */
 
 /* eslint-disable jsx-a11y/anchor-is-valid */
@@ -115,7 +115,8 @@ const getFile = async (file, metadata, options) => {
     file.api.userAgent = null;
     const data = await file.downloadBuffer();
     if (path.endsWith('.mp3')) {
-      return new Blob([data], { type: 'audio/mpeg' });
+      // return new Blob([data], { type: 'audio/mpeg' });
+      return new Uint8Array(data);
     }
     return data;
   }, metadata, options);
@@ -149,9 +150,8 @@ const getConfig = () => JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
 const updateConfig = (partial) => setConfig({ ...getConfig(CONFIG_KEY), ...partial });
 
 const tryGetStorage = async ({ email, password }) => {
-  // console.log('tryGetStorage', { email, password })
   const storage = new Storage({
-    userAgent: null, //'BookPlayerApplication/1.0',
+    userAgent: null,
     email,
     password
   });
@@ -198,7 +198,8 @@ function App() {
   const validateCredentials = useCallback(async (creds) => {
     if (!creds) {
       localStorage.clear();
-      await db.files.clear();
+      await db.delete();
+      window.location.reload();
     }
     const storage = await tryGetStorage(creds || {});
     localStorage.setItem('creds', JSON.stringify(creds || {}));
@@ -318,7 +319,8 @@ function App() {
     };
 
     try {
-      const url = window.URL.createObjectURL(data)
+      // const url = window.URL.createObjectURL(data)
+      const url = window.URL.createObjectURL(new Blob([data], { type: 'audio/mpeg' }));
       console.log('Play', 'About to load file into player', { url });
       audioRef.current.src = url;
       audioRef.current.load();
@@ -383,7 +385,6 @@ function App() {
               onTimeUpdate={handleConfigChange}
               onEnded={() => setSelectedChapter(getNextChapter())}
               onError={(e) => {
-                console.log('Error loading audio:', e);
                 console.error('Error loading audio:', e);
               }}
             >
