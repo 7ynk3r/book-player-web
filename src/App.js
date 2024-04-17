@@ -8,6 +8,7 @@
  * - avoid initial re-load of the file tree: we cannot serialize the files...
  * - break in components
  * - recreate the db on logout. clear db and everything, and call url reload ;)
+ * - logout in case of error
  */
 
 /* eslint-disable jsx-a11y/anchor-is-valid */
@@ -115,7 +116,7 @@ const getFile = async (file, metadata, options) => {
     file.api.userAgent = null;
     const data = await file.downloadBuffer();
     if (path.endsWith('.mp3')) {
-      // return new Blob([data], { type: 'audio/mpeg' });
+      // NOTE: we need to clone for mobile safari to work
       return new Uint8Array(data);
     }
     return data;
@@ -319,7 +320,6 @@ function App() {
     };
 
     try {
-      // const url = window.URL.createObjectURL(data)
       const url = window.URL.createObjectURL(new Blob([data], { type: 'audio/mpeg' }));
       console.log('Play', 'About to load file into player', { url });
       audioRef.current.src = url;
@@ -442,6 +442,7 @@ function App() {
         </div>
       );
     default:
+      // validateCredentials();
       return undefined;
   }
 
