@@ -5,53 +5,38 @@
 
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useLiveQuery } from "dexie-react-hooks";
-import { Howl, Howler } from 'howler';
 import _ from 'lodash';
+import { Button } from '@mui/material';
+import { IconButton } from '@mui/material';
+import PlayIcon from '@mui/icons-material/PlayCircle';
+import PauseIcon from '@mui/icons-material/PauseCircle';
+import Replay30Icon from '@mui/icons-material/Replay30';
+import Forward30Icon from '@mui/icons-material/Forward30';
 
 import useAsyncEffect from './useAsyncEffect';
 import db from './db';
 import assert from './assert';
 import { searchFilesAsync, getFileContentAsync, getFilePath, getFileName } from './files';
 
-// "path": "{C27AB72C-AA23-4324-9BDC-65BEBAB5FEA5}Fmt425-Part01.mp3#4242"
-const getChapterAudioFileName = (path) => path.split('-').slice(-1);
-const getChapterAudioFileSecondsOffset = (path) => path.split('#').slice(-1);
-
-// const getChapterAudioFileContentAsync = async (book, chapter) => {
-//   assert(book, 'book is not defined')
-//   assert(chapter, 'chapter is not defined')
-//   const chapterAudioFilePath = chapter.path;
-//   const chapterAudioFileName = getChapterAudioFileName(chapterAudioFilePath);
-//   // getChapterAudioFileSecondsOffset
-//   const bookFile = (await searchFilesAsync(it => getFilePath(it) === book.path))[0];
-//   console.log({ bookFile });
-//   const bookChildrenFiles = bookFile.parent.children;
-//   const chapterAudioFile = bookChildrenFiles.filter(file => file.name.endsWith(chapterAudioFileName))[0];
-//   assert(chapterAudioFile, `mp3 part "${chapterAudioFileName}" in path "${chapterAudioFilePath}" not found in [${bookChildrenFiles.map(it => it.name)}]`)
-
-//   book1 = { ...book, }
-//   return getFilePath(chapterAudioFile);
-//   console.log('loading audio file', { chapterAudioFile });
-//   await getFileContentAsync(chapterAudioFile);
-// }
-
-// const setChaptersAudioFilePathAsync = async (book) => {
-//   const bookFile = (await searchFilesAsync(it => getFilePath(it) === book.path))[0];
-//   const bookChildrenFiles = bookFile.parent.children;
-//   const bookChildrenFilePaths = _.fromPairs(bookChildrenFiles.map(it => [getChapterAudioFileName(getFileName(it)), getFilePath(it)]));
-//   console.log('setChaptersAudioFilePathAsync', { bookChildrenFilePaths })
-//   const toc0 = book.nav.toc.map(t => ({...t, bookChildrenFilePaths[t.path] }))
-//   const book0 = { ...book, nav: {...book.nav, toc} }
-//   // const chapters = book.nav.toc;
-// }
+// HtmlRenderer
+const HtmlRenderer = ({ htmlContent }) => {
+  return (
+    <div
+      dangerouslySetInnerHTML={{
+        __html: htmlContent,
+      }}
+    />
+  );
+};
 
 const AudioPlayer = ({ book, back }) => {
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [chapter, setChapter] = useState();
   const audioRef = useRef(null);
 
   useEffect(() => {
-    if (!playing) return;
+    if (playing) return;
     setChapter(book.nav.toc[0]);
   }, [book, playing]);
 
@@ -62,75 +47,85 @@ const AudioPlayer = ({ book, back }) => {
     await getFileContentAsync(chapterAudioFile);
   }, [chapter])
 
-  // Query books from files
   const audioUrl = useLiveQuery(async () => {
     if (!chapter) return;
-    const { data } = await db.files
+    const file = await db.files
       .where('path')
       .equals(chapter.filePath)
       .first();
-    // console.log({ audioFile })
-    // const books = bookFiles.map(({ data }) => JSON.parse(decoder.decode(data)));
-    const url = window.URL.createObjectURL(new Blob([data], { type: 'audio/mpeg' }));
-    console.log('url', { url })
-    return url;
-  }, [chapter], []);
+    const { data } = file;
+    if (!data) return;
+    return window.URL.createObjectURL(new Blob([data], { type: 'audio/mpeg' }));
+  }, [chapter]);
 
   useEffect(() => {
     if (!audioUrl) return;
     console.log('Play', 'About to load file into player', { audioUrl });
     audioRef.current.src = audioUrl;
     audioRef.current.load();
-
   }, [audioUrl]);
 
+  useEffect(() => {
+    if (loading) return;
+    if (playing) {
+      audioRef.current.pause();
+      audioRef.current.play();
+    }
+    else {
+      audioRef.current.pause();
+    }
+  }, [loading, playing])
+
+
+  const skip = (amount) => {
+    audioRef.current.currentTime += amount;
+  };
 
   return (
     <>
+      {/* Back */}
       <a href="#" onClick={back}>Go to books</a>
       <br />
-      <div>
-        <button onClick={() => setPlaying(!playing)}>{playing ? 'Pause' : 'Play'}</button>
-        <audio
-          controls
-          autoPlay
-          ref={audioRef}
-          onError={(e) => {
-            console.error('Error loading audio:', e);
-          }}
-        >
-          Your browser does not support the audio element.
-        </audio>
+
+      {/* Audio */}
+      <audio
+        style={{ display: 'none' }}
+        ref={audioRef}
+        onLoadedData={() => {
+          setLoading(false);
+        }}
+        onError={(e) => {
+          console.error('Error loading audio:', e);
+        }}
+      />
+      <br />
+
+      {/* Controls */}
+      <div style={{ textAlign: 'center' }}>
+        <IconButton onClick={() => skip(-30)}>
+          <Replay30Icon style={{ fontSize: 40 }} />
+        </IconButton>
+        <IconButton onClick={() => setPlaying(!playing)} >
+          {playing ? <PauseIcon style={{ fontSize: 80 }} /> : <PlayIcon style={{ fontSize: 80 }} />}
+        </IconButton>
+        <IconButton onClick={() => skip(30)}>
+          <Forward30Icon style={{ fontSize: 40 }} />
+        </IconButton>
       </div>
+
+      {/* Book Info */}
+      <h2>Chapters</h2>
+      <ul>
+        {book.nav.toc.map((chapter, index) => (
+          <li key={index}>
+            <a href="#" onClick={() => setChapter(chapter)}>{chapter?.title}</a>
+          </li>
+        ))}
+      </ul>
+      <h2>Description</h2>
+      <HtmlRenderer htmlContent={book.description.full} />
     </>
   );
-
-  // const sound = new Howl({
-  //   src: ['audio.mp3'],
-  //   autoplay: false,
-  //   loop: false,
-  //   volume: 0.5,
-  //   onplay: () => {
-  //     setPlaying(true);
-  //   },
-  //   onend: () => {
-  //     setPlaying(false);
-  //   },
-  // });
-
-  // const togglePlay = () => {
-  //   if (playing) {
-  //     sound.pause();
-  //   } else {
-  //     sound.play();
-  //   }
-  // };
-
-  // return (
-  //   <div>
-  //     <button onClick={togglePlay}>{playing ? 'Pause' : 'Play'}</button>
-  //   </div>
-  // );
 };
 
 export default AudioPlayer;
