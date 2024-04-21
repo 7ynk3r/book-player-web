@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { Typography, TextField, Button, Box } from '@mui/material';
 
 import assert from './assert';
 
@@ -35,26 +36,34 @@ function LoginForm({ validateCredentials }) {
 
   return (
     <form onSubmit={handleSubmit}>
-      <div>
-        <label htmlFor="email">Email:</label>
-        <input
+      <div style={{ marginBottom: '16px' }}>
+        <Typography htmlFor="email" variant="body1">Email:</Typography>
+        <TextField
           type="text"
           id="email"
           value={email}
           onChange={handleUserChange}
+          variant="outlined"
+          fullWidth
+          size="small"
         />
       </div>
-      <div>
-        <label htmlFor="password">Password:</label>
-        <input
+      <div style={{ marginBottom: '16px' }}>
+        <Typography htmlFor="password" variant="body1">Password:</Typography>
+        <TextField
           type="password"
           id="password"
           value={password}
           onChange={handlePasswordChange}
+          variant="outlined"
+          fullWidth
+          size="small"
         />
       </div>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <button type="submit" disabled={!ready}>Login</button>
+      {error && <Typography style={{ color: 'red', marginBottom: '16px' }} variant="body2">{error}</Typography>}
+      <Box mt={2}>
+        <Button type="submit" disabled={!ready} variant="contained" color="primary" fullWidth>Login</Button>
+      </Box>
     </form>
   );
 }
