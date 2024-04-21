@@ -1,6 +1,10 @@
 import React, { useCallback, useState } from 'react';
 
-function LoginForm({ validateCredentials, onSuccess }) {
+import assert from './assert';
+
+function LoginForm({ validateCredentials }) {
+  assert(validateCredentials, 'validateCredentials should be defined')
+
   // Define state variables for email and password
   const [ready, setReady] = useState(true);
   const [email, setEmail] = useState('');

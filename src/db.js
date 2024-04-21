@@ -1,9 +1,10 @@
-// import Dexie from 'dexie';
+import Dexie from 'dexie';
 
-// // Define the database schema
-// export const db = new Dexie('AudioDB');
-// db.version(1).stores({
-//   files: '++id, &name',
-// });
+const db = new Dexie('AudioDB');
 
-export const db = null
+// Define the database schema
+db.version(1).stores({
+  files: 'path, name, type'
+});
+
+export default db;
