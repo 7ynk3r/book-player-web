@@ -28,10 +28,14 @@ import PlayerPage from './PlayerPage';
 
 import db from './db';
 import { init } from './files'
+import { getStorage, setStorage } from './storage';
+
+const getBookId = (book) => book['-odread-buid'];
 
 function App() {
-  const [{ loading, storage, error, valid }, setStorageState] = useState({});
-  const [selectedBook, setSelectedBook] = useState();
+  const [{ storage, error, valid }, setStorageState] = useState({});
+  const [selectedBook, _setSelectedBook] = useState();
+  const [loading, setLoading] = useState(true);
 
   const validateCredentials = useCallback(async (credsNew) => {
     const credsOld = JSON.parse(localStorage.getItem('creds'));
@@ -65,12 +69,26 @@ function App() {
   }, [setStorageState]);
 
   // Restore last session
-  useEffect(() => { validateCredentials({ restore: true }) }, []);
+  useEffect(() => {
+    validateCredentials({ restore: true });
+    const selectedBook = getStorage('selectedBook');
+    if (selectedBook) _setSelectedBook(selectedBook);
+    setLoading(false);
+  }, []);
 
-  console.log({ loading, storage, error, valid });
+  const setSelectedBook = (book) => {
+    _setSelectedBook(book);
+    setStorage('selectedBook', book);
+  };
+
+  console.log({ storage, error, valid });
+
+
 
   switch (true) {
-    case !!selectedBook:
+    case loading:
+      return null;
+    case valid && !!selectedBook:
       return (
         <div style={{ padding: '20px' }}>
           <PlayerPage book={selectedBook} back={() => setSelectedBook(undefined)} />

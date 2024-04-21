@@ -27,7 +27,11 @@ export const getFilePath = (file) => {
 export const getFileName = (file) => file.name;
 export const getFileType = (file) => file.name.split('.').slice(-1)[0];
 
-const clone = x => new Uint8Array(x);
+// "path": "{C27AB72C-AA23-4324-9BDC-65BEBAB5FEA5}Fmt425-Part01.mp3#4242"
+export const getFileShortName = (path) => path.split('-').slice(-1)[0].split('#')[0];
+export const getFileOffset = (path) => parseInt(path.split('#')[1]) || 0;
+
+const clone = x => new Uint8Array(x); // clone by default
 export const getFileContentAsync = async (file, format = clone) => {
   const [name, path, type] = [getFileName(file), getFilePath(file), getFileType(file)];
   // return if exists
@@ -41,7 +45,7 @@ export const getFileContentAsync = async (file, format = clone) => {
     file.api.userAgent = null;
     data = await file.downloadBuffer();
     console.log({ format, data });
-    data = format(data); // clone
+    data = format(data);
   }
   catch (e) { error = e; }
   console.log('getFileContentAsync', { path, name, type, loading: false, data, error })

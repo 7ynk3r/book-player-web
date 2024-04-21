@@ -2,18 +2,24 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLiveQuery } from "dexie-react-hooks";
 import _ from 'lodash';
 
+import { Toolbar, IconButton, MenuItem, List, ListItem, ListItemText } from '@mui/material';
+import Typography from '@mui/material/Typography';
+import SettingsIcon from '@mui/icons-material/Settings';
+import Menu from '@mui/material/Menu';
+
 import db from './db';
 import assert from './assert';
 import useAsyncEffect from './useAsyncEffect'
-import { searchFilesAsync, getFileContentAsync, getFileName, getFilePath } from './files'
-
-// "path": "{C27AB72C-AA23-4324-9BDC-65BEBAB5FEA5}Fmt425-Part01.mp3#4242"
-const getFileShortName = (path) => path.split('-').slice(-1)[0].split('#')[0];
-const getFileOffset = (path) => path.split('#')[1] || 0;
+import { searchFilesAsync, getFileContentAsync, getFileName, getFilePath, getFileShortName, getFileOffset } from './files'
 
 export default ({ logout, selectBook }) => {
   assert(logout, 'logout is not defined');
   assert(selectBook, 'selectBook is not defined');
+
+  const [anchorEl, setAnchorEl] = useState(null);
+
+  const handleSettingsClick = (event) => setAnchorEl(event.currentTarget);
+  const handleSettingsClose = () => setAnchorEl(null);
 
   // Load books, if needed
   useAsyncEffect(async () => {
@@ -50,16 +56,36 @@ export default ({ logout, selectBook }) => {
 
   return (
     <>
-      <a href="#" onClick={logout}>Logout</a>
-      <br />
-      <h1>Books</h1>
-      <ul>
+      <Toolbar>
+        {/* Title */}
+        <Typography variant="h6" style={{ flexGrow: 1 }}>
+        </Typography>
+
+        {/* Button on the right */}
+        <IconButton edge="end" color="inherit" aria-label="logout" onClick={handleSettingsClick}>
+          <SettingsIcon />
+        </IconButton>
+
+        {/* Settings menu */}
+        <Menu
+          id="settings-menu"
+          anchorEl={anchorEl}
+          keepMounted
+          open={Boolean(anchorEl)}
+          onClose={handleSettingsClose}
+        >
+          <MenuItem onClick={logout}>Logout</MenuItem>
+        </Menu>
+      </Toolbar>
+
+      <Typography variant="h1">Books</Typography>
+      <List>
         {books.map((book, index) => (
-          <li key={index}>
-            <a href="#" onClick={(event) => selectBook(book)}>{book?.title?.main}</a>
-          </li>
+          <ListItem key={index} button onClick={() => selectBook(book)}>
+            <ListItemText primary={book?.title?.main} />
+          </ListItem>
         ))}
-      </ul>
+      </List>
     </>
   );
 }
