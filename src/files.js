@@ -42,8 +42,9 @@ export const getFileContentAsync = async (file, format = clone) => {
   await db.files.put({ path, name, type, loading: true });
   let [data, error] = [undefined, undefined];
   try {
-    file.api.userAgent = null;
-    data = await file.downloadBuffer();
+    file.api.userAgent = null
+    // console.log('file.api.userAgent', file);
+    data = await file.downloadBuffer({ forceHttps: true });
     console.log({ format, data });
     data = format(data);
   }

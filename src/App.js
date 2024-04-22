@@ -68,6 +68,7 @@ function App() {
 
   // Restore last session
   useEffect(() => {
+    // validateCredentials();
     validateCredentials({ restore: true });
     const selectedBook = getStorage('selectedBook');
     if (selectedBook) _setSelectedBook(selectedBook);
