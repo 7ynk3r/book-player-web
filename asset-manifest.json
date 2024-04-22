@@ -1,8 +1,8 @@
 {
   "files": {
     "main.css": "/book-player-web/static/css/main.d76c1078.css",
-    "main.js": "/book-player-web/static/js/main.4f4d4fcf.js",
-    "static/js/453.975a4767.chunk.js": "/book-player-web/static/js/453.975a4767.chunk.js",
+    "main.js": "/book-player-web/static/js/main.293b58c4.js",
+    "static/js/453.033a9a71.chunk.js": "/book-player-web/static/js/453.033a9a71.chunk.js",
     "static/media/roboto-latin-500-normal.woff2": "/book-player-web/static/media/roboto-latin-500-normal.f25d774ecfe0996f8eb5.woff2",
     "static/media/roboto-latin-700-normal.woff2": "/book-player-web/static/media/roboto-latin-700-normal.227c93190fe7f82de3f8.woff2",
     "static/media/roboto-latin-400-normal.woff2": "/book-player-web/static/media/roboto-latin-400-normal.b009a76ad6afe4ebd301.woff2",
@@ -61,11 +61,11 @@
     "static/media/roboto-greek-ext-700-normal.woff": "/book-player-web/static/media/roboto-greek-ext-700-normal.249853776d22a271b2b5.woff",
     "index.html": "/book-player-web/index.html",
     "main.d76c1078.css.map": "/book-player-web/static/css/main.d76c1078.css.map",
-    "main.4f4d4fcf.js.map": "/book-player-web/static/js/main.4f4d4fcf.js.map",
-    "453.975a4767.chunk.js.map": "/book-player-web/static/js/453.975a4767.chunk.js.map"
+    "main.293b58c4.js.map": "/book-player-web/static/js/main.293b58c4.js.map",
+    "453.033a9a71.chunk.js.map": "/book-player-web/static/js/453.033a9a71.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.d76c1078.css",
-    "static/js/main.4f4d4fcf.js"
+    "static/js/main.293b58c4.js"
   ]
 }
