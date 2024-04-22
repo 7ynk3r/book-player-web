@@ -2,7 +2,7 @@
   "name": "hidden-bookshelf",
   "version": "1.0.0",
   "private": false,
-  "homepage": "https://hidden-bookshelf.7ynk3r.site/",
+  "homepage": "http://7ynk3r.site/",
   "dependencies": {
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
