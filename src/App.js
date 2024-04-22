@@ -13,7 +13,7 @@
 
 /* eslint-disable jsx-a11y/anchor-is-valid */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Storage } from 'megajs'
 
 // Fonts
@@ -30,14 +30,12 @@ import db from './db';
 import { init } from './files'
 import { getStorage, setStorage } from './storage';
 
-const getBookId = (book) => book['-odread-buid'];
-
 function App() {
   const [{ storage, error, valid }, setStorageState] = useState({});
   const [selectedBook, _setSelectedBook] = useState();
   const [loading, setLoading] = useState(true);
 
-  const validateCredentials = useCallback(async (credsNew) => {
+  const validateCredentials = async (credsNew) => {
     const credsOld = JSON.parse(localStorage.getItem('creds'));
     if (credsOld && credsNew && credsNew.restore) {
       credsNew = credsOld;
@@ -66,7 +64,7 @@ function App() {
     catch (err) { error = err; }
     setStorageState({ loading: false, error, storage, valid: !error });
     return !error;
-  }, [setStorageState]);
+  };
 
   // Restore last session
   useEffect(() => {

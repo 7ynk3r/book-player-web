@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from "dexie-react-hooks";
 import _ from 'lodash';
 
@@ -9,10 +9,28 @@ import Menu from '@mui/material/Menu';
 
 import db from './db';
 import assert from './assert';
-import useAsyncEffect from './useAsyncEffect'
 import { searchFilesAsync, getFileContentAsync, getFileName, getFilePath, getFileShortName, getFileOffset } from './files'
 
-export default ({ logout, selectBook }) => {
+const getBooksAsync = async () => {
+  let bookFiles = await searchFilesAsync(file => file.name === 'openbook.json');
+  console.log({ bookFiles });
+  await Promise.all(bookFiles.map(f => getFileContentAsync(f, data => {
+    const book = JSON.parse(data);
+    const bookChildrenFiles = f.parent.children;
+    const bookChildrenFilePaths = _.fromPairs(bookChildrenFiles.map(it => [
+      getFileShortName(getFileName(it)),
+      getFilePath(it)
+    ]));
+    book.nav.toc = book.nav.toc.map(t => ({
+      ...t,
+      filePath: bookChildrenFilePaths[getFileShortName(t.path)],
+      offset: getFileOffset(t.path)
+    }))
+    return book;
+  })));
+}
+
+const BooksPage = ({ logout, selectBook }) => {
   assert(logout, 'logout is not defined');
   assert(selectBook, 'selectBook is not defined');
 
@@ -22,24 +40,7 @@ export default ({ logout, selectBook }) => {
   const handleSettingsClose = () => setAnchorEl(null);
 
   // Load books, if needed
-  useAsyncEffect(async () => {
-    let bookFiles = await searchFilesAsync(file => file.name === 'openbook.json');
-    console.log({ bookFiles });
-    await Promise.all(bookFiles.map(f => getFileContentAsync(f, data => {
-      const book = JSON.parse(data);
-      const bookChildrenFiles = f.parent.children;
-      const bookChildrenFilePaths = _.fromPairs(bookChildrenFiles.map(it => [
-        getFileShortName(getFileName(it)),
-        getFilePath(it)
-      ]));
-      book.nav.toc = book.nav.toc.map(t => ({
-        ...t,
-        filePath: bookChildrenFilePaths[getFileShortName(t.path)],
-        offset: getFileOffset(t.path)
-      }))
-      return book;
-    })));
-  }, []);
+  useEffect(() => { getBooksAsync() }, []);
 
   // Query books from files
   const books = useLiveQuery(async () => {
@@ -89,3 +90,5 @@ export default ({ logout, selectBook }) => {
     </>
   );
 }
+
+export default BooksPage;

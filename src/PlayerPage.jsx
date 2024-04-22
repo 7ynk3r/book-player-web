@@ -1,12 +1,11 @@
 /**
- * allow updating the current time with the slider
+ * make the media buttons work 
  * unify setTime and setCurrentTime
  * playback speed indicator of speed
  */
 
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useLiveQuery } from "dexie-react-hooks";
-import _ from 'lodash';
 
 import { Slider, IconButton, Toolbar, Box, Select, MenuItem, FormControl, CircularProgress } from '@mui/material';
 import Menu from '@mui/material/Menu';
@@ -68,7 +67,7 @@ const AudioPlayer = ({ book, back }) => {
     console.log('book changed!', { book })
     const chapterId = getStorage(getBookId(book))?.chapterId || getChapterId(book.nav.toc[0]);
     setChapter(book.nav.toc.find(c => getChapterId(c) === chapterId));
-  }, [book]);
+  }, [book, setChapter]);
 
   useEffect(() => {
     console.log('chapter changed!', { chapter })
@@ -90,7 +89,7 @@ const AudioPlayer = ({ book, back }) => {
   useEffect(() => {
     if (!chapter) return;
     getChapterAudioFileContentAsync(chapter);
-  }, [chapter])
+  }, [chapter]);
 
   // Get Audio File Content, Next
   useEffect(() => {
@@ -99,7 +98,7 @@ const AudioPlayer = ({ book, back }) => {
     const chapterNext = book.nav.toc[index + 1];
     if (!chapterNext) return;
     getChapterAudioFileContentAsync(chapter);
-  }, [book, chapter])
+  }, [book, chapter, loading]);
 
   // Skip
   const skip = (amount) => {
@@ -153,7 +152,7 @@ const AudioPlayer = ({ book, back }) => {
       const chapterPrev = book.nav.toc[book.nav.toc.indexOf(chapter) - 1];
       if (chapterPrev) setChapter(chapterPrev);
     }
-  }, [book, chapter, time, currentTime]);
+  }, [book, chapter, time, currentTime, setChapter]);
 
 
   const handleOnChange = (event, newValue) => {
@@ -164,6 +163,32 @@ const AudioPlayer = ({ book, back }) => {
     console.log('handleOnChangeCommitted', { event, newValue });
     audioRef.current.currentTime = newValue + chapter.offset;
   }, [chapter]);
+
+  useEffect(() => {
+    // TOOD
+    // // Set media metadata
+    // navigator.mediaSession.metadata = new MediaMetadata({
+    //   title: 'Your Audio Title',
+    //   artist: 'Artist Name',
+    //   album: 'Album Name',
+    //   artwork: [{ src: 'path-to-artwork.png', sizes: '512x512', type: 'image/png' }]
+    // });
+
+    // Set playback actions
+    navigator.mediaSession.setActionHandler('play', () => setPlaying(true));
+    navigator.mediaSession.setActionHandler('pause', () => setPlaying(false));
+    navigator.mediaSession.setActionHandler('previoustrack', () => skip(-10));
+    navigator.mediaSession.setActionHandler('nexttrack', () => skip(+10));
+    return () => {
+      // Cleanup function
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.setActionHandler('play', null);
+      navigator.mediaSession.setActionHandler('pause', null);
+      navigator.mediaSession.setActionHandler('previoustrack', null);
+      navigator.mediaSession.setActionHandler('nexttrack', null);
+    };
+  }, []);
+
 
   const MainIcon = playing && !loading ? PauseIcon : PlayIcon;
 
@@ -235,7 +260,7 @@ const AudioPlayer = ({ book, back }) => {
               />)}
             </Box>
           </IconButton>
-          <IconButton onClick={() => skip(10)} style={{ border: '2px solid', borderRadius: '50%' }}>
+          <IconButton onClick={() => skip(+10)} style={{ border: '2px solid', borderRadius: '50%' }}>
             <ForwardIcon style={{ fontSize: 40 }} />
           </IconButton>
           {/* Progress slider */}
