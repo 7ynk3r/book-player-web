@@ -1,7 +1,8 @@
 {
-  "name": "book-player-web",
-  "version": "0.1.0",
-  "private": true,
+  "name": "hidden-bookshelf",
+  "version": "1.0.0",
+  "private": false,
+  "homepage": "https://7ynk3r.github.io/book-player-web/",
   "dependencies": {
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
@@ -26,7 +27,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build"
   },
   "eslintConfig": {
     "extends": [
@@ -48,6 +51,7 @@
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
-    "eslint": "^8.57.0"
+    "eslint": "^8.57.0",
+    "gh-pages": "^6.1.1"
   }
 }
