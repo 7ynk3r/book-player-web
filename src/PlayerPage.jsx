@@ -41,7 +41,7 @@ const getChapterAudioFileContentAsync = async (chapter) => {
 }
 
 const getBookId = (book) => book['-odread-buid'];
-const getChapterId = (chapter) => chapter?.filePath;
+const getChapterId = (chapter) => chapter?.path;
 
 const AudioPlayer = ({ book, back }) => {
   const [chapter, _setChapter] = useState();
@@ -61,16 +61,17 @@ const AudioPlayer = ({ book, back }) => {
     setTime(undefined);
     setCurrentTime(undefined);
     _setChapter(chapter);
-  }, [_setChapter]);
+  }, []);
 
+  // Set Inital Chapter
   useEffect(() => {
-    console.log('book changed!', { book })
+    console.log('Set Inital Chapter', { book })
     const chapterId = getStorage(getBookId(book))?.chapterId || getChapterId(book.nav.toc[0]);
     setChapter(book.nav.toc.find(c => getChapterId(c) === chapterId));
   }, [book, setChapter]);
 
   useEffect(() => {
-    console.log('chapter changed!', { chapter })
+    console.log('Chapter Changed', { chapter })
   }, [chapter])
 
   // Time
@@ -97,7 +98,7 @@ const AudioPlayer = ({ book, back }) => {
     const index = book.nav.toc.indexOf(chapter);
     const chapterNext = book.nav.toc[index + 1];
     if (!chapterNext) return;
-    getChapterAudioFileContentAsync(chapter);
+    getChapterAudioFileContentAsync(chapterNext);
   }, [book, chapter, loading]);
 
   // Skip
@@ -124,8 +125,7 @@ const AudioPlayer = ({ book, back }) => {
     audioRef.current.src = window.URL.createObjectURL(new Blob([file.data], { type: 'audio/mpeg' }));
     audioRef.current.load();
     const { chapterId, currentTime } = getStorage(getBookId(book)) || {};
-    console.log({ o: getChapterId(chapter), chapterId, currentTime })
-    audioRef.current.currentTime = chapterId === getChapterId(chapter) ? currentTime : chapter.offset;
+    audioRef.current.currentTime = chapter.offset + (chapterId === getChapterId(chapter) ? currentTime : 0);
     audioRef.current.playbackRate = parseFloat(localStorage.getItem("playbackRate")) || 1;
   }, [book, chapter]);
 
@@ -165,7 +165,7 @@ const AudioPlayer = ({ book, back }) => {
   }, [chapter]);
 
   useEffect(() => {
-    // TOOD
+    // TODO
     // // Set media metadata
     // navigator.mediaSession.metadata = new MediaMetadata({
     //   title: 'Your Audio Title',
@@ -234,8 +234,8 @@ const AudioPlayer = ({ book, back }) => {
       <FormControl fullWidth>
         {/* Audio */}
         <audio
-          style={{ display: 'none' }}
           ref={audioRef}
+          autoPlay={true}
           onLoadedData={() => setLoading(false)}
           onTimeUpdate={handleTimeUpdate}
           onError={(e) => console.error('Error loading audio:', e)}
@@ -263,6 +263,7 @@ const AudioPlayer = ({ book, back }) => {
           <IconButton onClick={() => skip(+10)} style={{ border: '2px solid', borderRadius: '50%' }}>
             <ForwardIcon style={{ fontSize: 40 }} />
           </IconButton>
+
           {/* Progress slider */}
           <Slider
             value={currentTime || time?.start || 0}
