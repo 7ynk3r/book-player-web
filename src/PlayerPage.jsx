@@ -1,4 +1,5 @@
 /**
+ * https://wavesurfer.xyz/
  * make the media buttons work 
  * unify setTime and setCurrentTime
  * playback speed indicator of speed
