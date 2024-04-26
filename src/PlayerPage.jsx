@@ -134,7 +134,6 @@ const AudioPlayer = ({ book, back }) => {
   useEffect(() => {
     if (!audioRef.current) return;
     if (!loading && playing) {
-      audioRef.current.pause();
       audioRef.current.play();
     }
     else {
@@ -213,7 +212,7 @@ const AudioPlayer = ({ book, back }) => {
         <IconButton edge="end" color="inherit" aria-label="settings" onClick={handleSettingsClick}>
           <SpeedIcon />
           <Typography variant='caption' style={{ position: 'absolute', bottom: -10, textAlign: 'center', width: '100%' }}>
-            {`${audioRef.current.playbackRate}x`}
+            {`${(audioRef?.current?.playbackRate || 1)}x`}
           </Typography>
         </IconButton>
 
