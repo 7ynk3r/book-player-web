@@ -212,6 +212,9 @@ const AudioPlayer = ({ book, back }) => {
         {/* Button on the right */}
         <IconButton edge="end" color="inherit" aria-label="settings" onClick={handleSettingsClick}>
           <SpeedIcon />
+          <Typography variant='caption' style={{ position: 'absolute', bottom: -10, textAlign: 'center', width: '100%' }}>
+            {`${audioRef.current.playbackRate}x`}
+          </Typography>
         </IconButton>
 
         {/* Playback rate menu */}
